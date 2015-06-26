@@ -2,4 +2,4 @@
 .git
 target
 out
-geoip.iml
+*.iml

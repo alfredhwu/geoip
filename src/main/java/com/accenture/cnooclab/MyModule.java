@@ -10,6 +10,9 @@ import com.github.thorqin.toolkit.web.annotation.WebEntry.HttpMethod;
 import com.github.thorqin.toolkit.web.utility.ServletUtils;
 import org.joda.time.DateTime;
 import org.joda.time.format.DateTimeFormat;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import javax.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.io.InputStream;
@@ -20,6 +23,9 @@ import java.util.Scanner;
 
 @WebModule
 public class MyModule {
+
+    final Logger logger = LoggerFactory.getLogger(MyModule.class);
+
     @DBInstance
     DBService db;
 
@@ -31,7 +37,11 @@ public class MyModule {
     }
 
     @WebEntry(method = HttpMethod.GET)
-    public WebContent getIPGeoLocation(@Param("ip") String ip) {
+    public WebContent getIPGeoLocation(@Query("ip") String ip) {
+        logger.info("IP from param is: " + ip);
+        logger.debug("coucou");
+        logger.warn("warning !!!");
+        System.out.println("IP from param is: " + ip);
         IPGeoLocation ipgeo = this.getIPGeoLocationFromDB(ip);
         // if not found, retrieve from API
         if (null == ipgeo) {
@@ -64,19 +74,25 @@ public class MyModule {
 
         // http client
         // url connection
-        String api_url = WebApplication.get().getConfigManager().getString("ipapi/url");
+        final String API_URL = WebApplication.get().getConfigManager().getString("ipapi/url");
+        final String PROXY_SERVER = WebApplication.get().getConfigManager().getString("proxy/server");
+        final int PROXY_PORT = WebApplication.get().getConfigManager().getInteger("proxy/port");
+        final String PROXY_USER = WebApplication.get().getConfigManager().getString("proxy/user");
+        final String PROXY_PASSWD = WebApplication.get().getConfigManager().getString("proxy/passwd");
         IPGeoLocation ipGeoLocation = null;
 
+        System.out.println("getIPGeoLocationFromAPI called");
+
         try {
-            URL url = new URL(api_url);
+            URL url = new URL(API_URL+"/"+ip);
 
             // proxy settings
-            InetSocketAddress proxyServerAddr = new InetSocketAddress("10.68.211.1", 8080);
+            InetSocketAddress proxyServerAddr = new InetSocketAddress(PROXY_SERVER, PROXY_PORT);
             Proxy proxy = new Proxy(Proxy.Type.HTTP, proxyServerAddr);
 
             HttpURLConnection urlConnection = (HttpURLConnection) url.openConnection(proxy);
 
-            String encoded = new String(Base64.getEncoder().encodeToString(new String("ex_wudw2:Accenture1").getBytes("utf-8")));
+            String encoded = new String(Base64.getEncoder().encodeToString(new String(PROXY_USER+":"+PROXY_PASSWD).getBytes("utf-8")));
             urlConnection.setRequestProperty("Proxy-Authorization", "Basic "+encoded);
             urlConnection.setReadTimeout(5 * 1000);
             urlConnection.setRequestMethod("GET");
@@ -88,6 +104,10 @@ public class MyModule {
             while (inputStream.hasNext()) {
                 stringBuffer.append(inputStream.nextLine());
             }
+
+            //logger.info(stringBuffer.toString());
+            System.out.println(stringBuffer.toString());
+
 
             if (urlConnection.getResponseCode()==200 && urlConnection.getContentType()=="application/json") {
                 ipGeoLocation =  Serializer.fromJson(stringBuffer.toString(), IPGeoLocation.class);
